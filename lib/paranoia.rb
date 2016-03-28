@@ -54,6 +54,7 @@ module Paranoia
 
   module Callbacks
     def self.extended(klazz)
+      print "I am adding for #{klazz}"
       [:restore, :real_destroy].each do |callback_name|
         klazz.define_callbacks callback_name
 
@@ -205,20 +206,61 @@ module Paranoia
   end
 end
 
+class Class
+  def extend?(klass)
+    not superclass.nil? and ( superclass == klass or superclass.extend? klass )
+  end
+end
+
 class ActiveRecord::Base
-  def self.acts_as_paranoid(options={})
+  class << self
+    alias_method :original_establish_connection, :establish_connection
+    alias_method :original_inherited, :inherited
+  end
+
+  def self.establish_connection(opts = {})
+    result = original_establish_connection(opts)
+
+    # Setup paranoid after DB connection.
+    Module.constants.select do |constant_name|
+      constant = eval constant_name.to_s
+      if not constant.nil? and constant.is_a? Class and constant.extend? ActiveRecord::Base
+        constant.setup_paranoid if constant.connection.table_exists?(constant.table_name) and 
+                                   constant.connection.column_exists?(constant.table_name, :deleted_at) and
+                                   constant.connection.column_exists?(constant.table_name, :deleted)
+      end
+    end
+    return result
+  end
+
+  def self.acts_as_paranoid(opts = {})
+    # TODO remove noop
+  end
+
+  def self.inherited(subclass)
+    # To setup the restore/real_destroy callbacks in advance of connecting, only get used if subclass is eligible after columnar check.
+    subclass.class_eval do
+      include Paranoia
+    end
+
+    original_inherited(subclass)
+  end
+
+  def self.setup_paranoid
     alias_method :really_destroyed?, :destroyed?
     alias_method :really_delete, :delete
     alias_method :destroy_without_paranoia, :destroy
 
-    include Paranoia
     class_attribute :paranoia_column, :paranoia_sentinel_value
 
-    self.paranoia_column = (options[:column] || :deleted_at).to_s
-    self.paranoia_sentinel_value = options.fetch(:sentinel_value) { Paranoia.default_sentinel_value }
+    self.paranoia_column = :deleted
+
+    self.paranoia_sentinel_value = false
+
     def self.paranoia_scope
       where(paranoia_column => paranoia_sentinel_value)
     end
+
     class << self; alias_method :without_deleted, :paranoia_scope end
 
     unless options[:without_default_scope]
@@ -231,6 +273,14 @@ class ActiveRecord::Base
     after_restore {
       self.class.notify_observers(:after_restore, self) if self.class.respond_to?(:notify_observers)
     }
+
+    before_destroy do
+      self.deleted_at = Time.now
+    end
+
+    before_restore do
+      self.deleted_at = nil
+    end
   end
 
   # Please do not use this method in production.

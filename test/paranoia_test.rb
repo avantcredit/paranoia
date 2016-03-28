@@ -24,7 +24,7 @@ def setup!
     'not_paranoid_model_with_belongs' => 'parent_model_id INTEGER, paranoid_model_with_has_one_id INTEGER',
     'paranoid_model_with_has_one_and_builds' => 'parent_model_id INTEGER, color VARCHAR(32), deleted_at DATETIME, has_one_foreign_key_id INTEGER',
     'featureful_models' => 'deleted_at DATETIME, name VARCHAR(32)',
-    'plain_models' => 'deleted_at DATETIME',
+    'plain_models' => 'some_column VARCHAR(32)',
     'callback_models' => 'deleted_at DATETIME',
     'fail_callback_models' => 'deleted_at DATETIME',
     'related_models' => 'parent_model_id INTEGER, parent_model_with_counter_cache_column_id INTEGER, deleted_at DATETIME',
@@ -50,7 +50,6 @@ end
 class WithDifferentConnection < ActiveRecord::Base
   establish_connection adapter: 'sqlite3', database: ':memory:'
   connection.execute 'CREATE TABLE with_different_connections (id INTEGER NOT NULL PRIMARY KEY, deleted_at DATETIME)'
-  acts_as_paranoid
 end
 
 setup!
