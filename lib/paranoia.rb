@@ -1,16 +1,6 @@
 require 'active_record' unless defined? ActiveRecord
 
 module Paranoia
-  @@default_sentinel_value = nil
-
-  # Change default_sentinel_value in a rails initilizer
-  def self.default_sentinel_value=(val)
-    @@default_sentinel_value = val
-  end
-
-  def self.default_sentinel_value
-    @@default_sentinel_value
-  end
 
   def self.included(klazz)
     klazz.extend Query
@@ -53,8 +43,7 @@ module Paranoia
   end
 
   module Callbacks
-    def self.extended(klazz)
-      print "I am adding for #{klazz}"
+    def self.add_callbacks_to(klazz)
       [:restore, :real_destroy].each do |callback_name|
         klazz.define_callbacks callback_name
 
@@ -110,6 +99,8 @@ module Paranoia
         noop_if_frozen = ActiveRecord.version < Gem::Version.new("4.1")
         if (noop_if_frozen && !@attributes.frozen?) || !noop_if_frozen
           write_attribute paranoia_column, paranoia_sentinel_value
+          write_attribute paranoia_timestamp_column, nil
+
           update_columns(paranoia_restore_attributes)
           touch
         end
@@ -144,7 +135,9 @@ module Paranoia
             association_data.really_destroy!
           end
         end
-        write_attribute(paranoia_column, current_time_from_proper_timezone)
+        write_attribute(paranoia_timestamp_column, current_time_from_proper_timezone)
+        write_attribute(paranoia_column, !paranoia_sentinel_value)
+
         destroy_without_paranoia
       end
     end
@@ -154,13 +147,15 @@ module Paranoia
 
   def paranoia_restore_attributes
     {
-      paranoia_column => paranoia_sentinel_value
+      paranoia_column => paranoia_sentinel_value,
+      paranoia_timestamp_column => nil
     }
   end
 
   def paranoia_destroy_attributes
     {
-      paranoia_column => current_time_from_proper_timezone
+      paranoia_column => !paranoia_sentinel_value,
+      paranoia_timestamp_column => current_time_from_proper_timezone
     }
   end
 
@@ -214,23 +209,23 @@ end
 
 class ActiveRecord::Base
   class << self
-    alias_method :original_establish_connection, :establish_connection
+    alias_method :original_connection, :connection
     alias_method :original_inherited, :inherited
+    attr_accessor :already_checked_for_paranoid_eligibility
   end
 
-  def self.establish_connection(opts = {})
-    result = original_establish_connection(opts)
+  def self.paranoid? ; false ; end
+  def paranoid? ; self.class.paranoid? ; end
 
-    # Setup paranoid after DB connection.
-    Module.constants.select do |constant_name|
-      constant = eval constant_name.to_s
-      if not constant.nil? and constant.is_a? Class and constant.extend? ActiveRecord::Base
-        constant.setup_paranoid if constant.connection.table_exists?(constant.table_name) and 
-                                   constant.connection.column_exists?(constant.table_name, :deleted_at) and
-                                   constant.connection.column_exists?(constant.table_name, :deleted)
-      end
-    end
-    return result
+  def self.connection(opts = {})
+    self.setup_paranoid if  !already_checked_for_paranoid_eligibility and
+                              extend?(ActiveRecord::Base) and
+                              original_connection.table_exists?(table_name) and 
+                              original_connection.column_exists?(table_name, :deleted_at) and
+                              original_connection.column_exists?(table_name, :deleted)
+    
+    self.already_checked_for_paranoid_eligibility = true
+    original_connection
   end
 
   def self.acts_as_paranoid(opts = {})
@@ -238,34 +233,26 @@ class ActiveRecord::Base
   end
 
   def self.inherited(subclass)
-    # To setup the restore/real_destroy callbacks in advance of connecting, only get used if subclass is eligible after columnar check.
-    subclass.class_eval do
-      include Paranoia
-    end
+    # To setup the restore/real_destroy callbacks in advance of connecting but before classes get defined,
+    # only get used if subclass is eligible after columnar check in establish_connection.
+    Paranoia::Callbacks.add_callbacks_to(subclass)
 
     original_inherited(subclass)
   end
 
   def self.setup_paranoid
+    include Paranoia
+    class_attribute :paranoia_column, :paranoia_sentinel_value, :paranoia_timestamp_column
+
     alias_method :really_destroyed?, :destroyed?
     alias_method :really_delete, :delete
     alias_method :destroy_without_paranoia, :destroy
 
-    class_attribute :paranoia_column, :paranoia_sentinel_value
-
     self.paranoia_column = :deleted
-
+    self.paranoia_timestamp_column = :deleted_at
     self.paranoia_sentinel_value = false
 
-    def self.paranoia_scope
-      where(paranoia_column => paranoia_sentinel_value)
-    end
-
-    class << self; alias_method :without_deleted, :paranoia_scope end
-
-    unless options[:without_default_scope]
-      default_scope { paranoia_scope }
-    end
+    default_scope { where(paranoia_column => paranoia_sentinel_value) }
 
     before_restore {
       self.class.notify_observers(:before_restore, self) if self.class.respond_to?(:notify_observers)
@@ -275,36 +262,28 @@ class ActiveRecord::Base
     }
 
     before_destroy do
-      self.deleted_at = Time.now
+      self.send(paranoia_timestamp_column.to_s + "=", Time.now)
     end
 
     before_restore do
-      self.deleted_at = nil
+      self.send(paranoia_timestamp_column.to_s + "=", nil)
     end
-  end
 
-  # Please do not use this method in production.
-  # Pretty please.
-  def self.I_AM_THE_DESTROYER!
-    # TODO: actually implement spelling error fixes
-    puts %Q{
-      Sharon: "There should be a method called I_AM_THE_DESTROYER!"
-      Ryan:   "What should this method do?"
-      Sharon: "It should fix all the spelling errors on the page!"
-}
-  end
+    def self.paranoid? ; true ; end
 
-  def self.paranoid? ; false ; end
-  def paranoid? ; self.class.paranoid? ; end
+    private
 
-  private
+    def paranoia_column
+      self.class.paranoia_column
+    end
 
-  def paranoia_column
-    self.class.paranoia_column
-  end
+    def paranoia_timestamp_column
+      self.class.paranoia_timestamp_column
+    end
 
-  def paranoia_sentinel_value
-    self.class.paranoia_sentinel_value
+    def paranoia_sentinel_value
+      self.class.paranoia_sentinel_value
+    end
   end
 end
 
@@ -315,7 +294,9 @@ module ActiveRecord
     module UniquenessParanoiaValidator
       def build_relation(klass, table, attribute, value)
         relation = super(klass, table, attribute, value)
-        return relation unless klass.respond_to?(:paranoia_column)
+
+        return relation unless klass.paranoia_column.present? and klass.paranoia_timestamp_column.present?
+
         arel_paranoia_scope = klass.arel_table[klass.paranoia_column].eq(klass.paranoia_sentinel_value)
         if ActiveRecord::VERSION::STRING >= "5.0"
           relation.where(arel_paranoia_scope)

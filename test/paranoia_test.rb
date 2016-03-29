@@ -2,6 +2,7 @@ require 'bundler/setup'
 require 'active_record'
 require 'minitest/autorun'
 require 'paranoia'
+require 'pry'
 
 test_framework = defined?(MiniTest::Test) ? MiniTest::Test : MiniTest::Unit::TestCase
 ActiveRecord::Base.raise_in_transactional_callbacks = true if ActiveRecord::VERSION::STRING >= '4.2'
@@ -14,34 +15,34 @@ def setup!
   connect!
   {
     'parent_model_with_counter_cache_columns' => 'related_models_count INTEGER DEFAULT 0',
-    'parent_models' => 'deleted_at DATETIME',
-    'paranoid_models' => 'parent_model_id INTEGER, deleted_at DATETIME',
-    'paranoid_model_with_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_id INTEGER',
-    'paranoid_model_with_build_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_and_build_id INTEGER, name VARCHAR(32)',
-    'paranoid_model_with_anthor_class_name_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_id INTEGER',
-    'paranoid_model_with_foreign_key_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, has_one_foreign_key_id INTEGER',
-    'paranoid_model_with_timestamps' => 'parent_model_id INTEGER, created_at DATETIME, updated_at DATETIME, deleted_at DATETIME',
+    'parent_models' => 'deleted_at DATETIME, deleted BOOLEAN',
+    'paranoid_models' => 'parent_model_id INTEGER, deleted_at DATETIME, deleted BOOLEAN',
+    'paranoid_model_with_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_id INTEGER, deleted BOOLEAN',
+    'paranoid_model_with_build_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_and_build_id INTEGER, name VARCHAR(32), deleted BOOLEAN',
+    'paranoid_model_with_anthor_class_name_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_id INTEGER, deleted BOOLEAN',
+    'paranoid_model_with_foreign_key_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, has_one_foreign_key_id INTEGER, deleted BOOLEAN',
+    'paranoid_model_with_timestamps' => 'parent_model_id INTEGER, created_at DATETIME, updated_at DATETIME, deleted_at DATETIME, deleted BOOLEAN',
     'not_paranoid_model_with_belongs' => 'parent_model_id INTEGER, paranoid_model_with_has_one_id INTEGER',
-    'paranoid_model_with_has_one_and_builds' => 'parent_model_id INTEGER, color VARCHAR(32), deleted_at DATETIME, has_one_foreign_key_id INTEGER',
-    'featureful_models' => 'deleted_at DATETIME, name VARCHAR(32)',
+    'paranoid_model_with_has_one_and_builds' => 'parent_model_id INTEGER, color VARCHAR(32), deleted_at DATETIME, has_one_foreign_key_id INTEGER, deleted BOOLEAN',
+    'featureful_models' => 'deleted_at DATETIME, name VARCHAR(32), deleted BOOLEAN',
     'plain_models' => 'some_column VARCHAR(32)',
-    'callback_models' => 'deleted_at DATETIME',
-    'fail_callback_models' => 'deleted_at DATETIME',
-    'related_models' => 'parent_model_id INTEGER, parent_model_with_counter_cache_column_id INTEGER, deleted_at DATETIME',
-    'asplode_models' => 'parent_model_id INTEGER, deleted_at DATETIME',
-    'employers' => 'name VARCHAR(32), deleted_at DATETIME',
-    'employees' => 'deleted_at DATETIME',
-    'jobs' => 'employer_id INTEGER NOT NULL, employee_id INTEGER NOT NULL, deleted_at DATETIME',
-    'custom_column_models' => 'destroyed_at DATETIME',
-    'custom_sentinel_models' => 'deleted_at DATETIME NOT NULL',
+    'callback_models' => 'deleted_at DATETIME, deleted BOOLEAN',
+    'fail_callback_models' => 'deleted_at DATETIME, deleted BOOLEAN',
+    'related_models' => 'parent_model_id INTEGER, parent_model_with_counter_cache_column_id INTEGER, deleted_at DATETIME, deleted BOOLEAN',
+    'asplode_models' => 'parent_model_id INTEGER, deleted_at DATETIME, deleted BOOLEAN',
+    'employers' => 'name VARCHAR(32), deleted_at DATETIME, deleted BOOLEAN',
+    'employees' => 'deleted_at DATETIME, deleted BOOLEAN',
+    'jobs' => 'employer_id INTEGER NOT NULL, employee_id INTEGER NOT NULL, deleted_at DATETIME, deleted BOOLEAN',
+    'custom_column_models' => 'destroyed_at DATETIME, deleted BOOLEAN',
+    'custom_sentinel_models' => 'deleted_at DATETIME NOT NULL, deleted BOOLEAN',
     'non_paranoid_models' => 'parent_model_id INTEGER',
-    'polymorphic_models' => 'parent_id INTEGER, parent_type STRING, deleted_at DATETIME',
-    'namespaced_paranoid_has_ones' => 'deleted_at DATETIME, paranoid_belongs_tos_id INTEGER',
-    'namespaced_paranoid_belongs_tos' => 'deleted_at DATETIME, paranoid_has_one_id INTEGER',
+    'polymorphic_models' => 'parent_id INTEGER, parent_type STRING, deleted_at DATETIME, deleted BOOLEAN',
+    'namespaced_paranoid_has_ones' => 'deleted_at DATETIME, paranoid_belongs_tos_id INTEGER, deleted BOOLEAN',
+    'namespaced_paranoid_belongs_tos' => 'deleted_at DATETIME, paranoid_has_one_id INTEGER, deleted BOOLEAN',
     'unparanoid_unique_models' => 'name VARCHAR(32), paranoid_with_unparanoids_id INTEGER',
     'active_column_models' => 'deleted_at DATETIME, active BOOLEAN',
     'active_column_model_with_uniqueness_validations' => 'name VARCHAR(32), deleted_at DATETIME, active BOOLEAN',
-    'without_default_scope_models' => 'deleted_at DATETIME'
+    'without_default_scope_models' => 'deleted_at DATETIME, deleted BOOLEAN'
   }.each do |table_name, columns_as_sql_string|
     ActiveRecord::Base.connection.execute "CREATE TABLE #{table_name} (id INTEGER NOT NULL PRIMARY KEY, #{columns_as_sql_string})"
   end
@@ -49,7 +50,7 @@ end
 
 class WithDifferentConnection < ActiveRecord::Base
   establish_connection adapter: 'sqlite3', database: ':memory:'
-  connection.execute 'CREATE TABLE with_different_connections (id INTEGER NOT NULL PRIMARY KEY, deleted_at DATETIME)'
+  connection.execute 'CREATE TABLE with_different_connections (id INTEGER NOT NULL PRIMARY KEY, deleted_at DATETIME, deleted BOOLEAN)'
 end
 
 setup!
@@ -190,93 +191,6 @@ class ParanoiaTest < test_framework
     assert_equal 2, parent1.paranoid_models.with_deleted.count
     assert_equal 1, parent1.paranoid_models.without_deleted.count
     assert_equal [p1,p3], parent1.paranoid_models.with_deleted
-  end
-
-  def test_destroy_behavior_for_custom_column_models
-    model = CustomColumnModel.new
-    assert_equal 0, model.class.count
-    model.save!
-    assert_nil model.destroyed_at
-    assert_equal 1, model.class.count
-    model.destroy
-
-    assert_equal false, model.destroyed_at.nil?
-    assert model.paranoia_destroyed?
-
-    assert_equal 0, model.class.count
-    assert_equal 1, model.class.unscoped.count
-    assert_equal 1, model.class.only_deleted.count
-    assert_equal 1, model.class.deleted.count
-  end
-
-  def test_default_sentinel_value
-    assert_equal nil, ParanoidModel.paranoia_sentinel_value
-  end
-
-  def test_without_default_scope_option
-    model = WithoutDefaultScopeModel.create
-    model.destroy
-    assert_equal 1, model.class.count
-    assert_equal 1, model.class.only_deleted.count
-    assert_equal 0, model.class.where(deleted_at: nil).count
-  end
-
-  def test_active_column_model
-    model = ActiveColumnModel.new
-    assert_equal 0, model.class.count
-    model.save!
-    assert_nil model.deleted_at
-    assert_equal true, model.active
-    assert_equal 1, model.class.count
-    model.destroy
-
-    assert_equal false, model.deleted_at.nil?
-    assert_nil model.active
-    assert model.paranoia_destroyed?
-
-    assert_equal 0, model.class.count
-    assert_equal 1, model.class.unscoped.count
-    assert_equal 1, model.class.only_deleted.count
-    assert_equal 1, model.class.deleted.count
-  end
-
-  def test_active_column_model_with_uniqueness_validation_only_checks_non_deleted_records
-    a = ActiveColumnModelWithUniquenessValidation.create!(name: "A")
-    a.destroy
-    b = ActiveColumnModelWithUniquenessValidation.new(name: "A")
-    assert b.valid?
-  end
-
-  def test_active_column_model_with_uniqueness_validation_still_works_on_non_deleted_records
-    a = ActiveColumnModelWithUniquenessValidation.create!(name: "A")
-    b = ActiveColumnModelWithUniquenessValidation.new(name: "A")
-    refute b.valid?
-  end
-
-  def test_sentinel_value_for_custom_sentinel_models
-    model = CustomSentinelModel.new
-    assert_equal 0, model.class.count
-    model.save!
-    assert_equal DateTime.new(0), model.deleted_at
-    assert_equal 1, model.class.count
-    model.destroy
-
-    assert DateTime.new(0) != model.deleted_at
-    assert model.paranoia_destroyed?
-
-    assert_equal 0, model.class.count
-    assert_equal 1, model.class.unscoped.count
-    assert_equal 1, model.class.only_deleted.count
-    assert_equal 1, model.class.deleted.count
-
-    model.restore
-    assert_equal DateTime.new(0), model.deleted_at
-    assert !model.destroyed?
-
-    assert_equal 1, model.class.count
-    assert_equal 1, model.class.unscoped.count
-    assert_equal 0, model.class.only_deleted.count
-    assert_equal 0, model.class.deleted.count
   end
 
   def test_destroy_behavior_for_featureful_paranoid_models
@@ -486,7 +400,8 @@ class ParanoiaTest < test_framework
     model = ParanoidModel.new
     model.save
     model.really_destroy!
-    refute ParanoidModel.unscoped.exists?(model.id)
+    binding.pry
+    refute ParanoidModel.unscoped.exists?(model.id), "Model was not truly deleted!"
   end
 
   def test_real_destroy_dependent_destroy
@@ -1056,55 +971,6 @@ class Job < ActiveRecord::Base
   belongs_to :employee
 end
 
-class CustomColumnModel < ActiveRecord::Base
-  acts_as_paranoid column: :destroyed_at
-end
-
-class CustomSentinelModel < ActiveRecord::Base
-  acts_as_paranoid sentinel_value: DateTime.new(0)
-end
-
-class WithoutDefaultScopeModel < ActiveRecord::Base
-  acts_as_paranoid without_default_scope: true
-end
-
-class ActiveColumnModel < ActiveRecord::Base
-  acts_as_paranoid column: :active, sentinel_value: true
-
-  def paranoia_restore_attributes
-    {
-      deleted_at: nil,
-      active: true
-    }
-  end
-
-  def paranoia_destroy_attributes
-    {
-      deleted_at: current_time_from_proper_timezone,
-      active: nil
-    }
-  end
-end
-
-class ActiveColumnModelWithUniquenessValidation < ActiveRecord::Base
-  validates :name, :uniqueness => true
-  acts_as_paranoid column: :active, sentinel_value: true
-
-  def paranoia_restore_attributes
-    {
-      deleted_at: nil,
-      active: true
-    }
-  end
-
-  def paranoia_destroy_attributes
-    {
-      deleted_at: current_time_from_proper_timezone,
-      active: nil
-    }
-  end
-end
-
 class NonParanoidModel < ActiveRecord::Base
 end
 
@@ -1169,14 +1035,6 @@ end
 
 class NotParanoidModelWithBelong < ActiveRecord::Base
   belongs_to :paranoid_model_with_has_one
-end
-
-class FlaggedModel < PlainModel
-  acts_as_paranoid :flag_column => :is_deleted
-end
-
-class FlaggedModelWithCustomIndex < PlainModel
-  acts_as_paranoid :flag_column => :is_deleted, :indexed_column => :is_deleted
 end
 
 class AsplodeModel < ActiveRecord::Base
