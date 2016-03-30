@@ -93,8 +93,13 @@ class ParanoiaTest < test_framework
     assert_equal true, ParanoidModel.new.paranoid?
   end
 
+  def test_paranoid_model_with_acts_as_not_paranoid_set_doesnt_get_paranoid
+    refute ParanoidModelWithActsAsNotParanoid.paranoid?
+  end
+
   def test_paranoid_models_are_not_paranoid_when_blacklisted
-    # Tests when is table_name,
+    # Tests when is:
+    # table_name,
     # ,table_name,
     # or ,table_name
     # in ENV['PARANOIA_BLACKLIST']
@@ -873,6 +878,11 @@ end
 class ParanoidWithUnparanoids < ActiveRecord::Base
   self.table_name = 'plain_models'
   has_many :unparanoid_unique_models
+end
+
+class ParanoidModelWithActsAsNotParanoid < ActiveRecord::Base
+  self.table_name = 'paranoid_models'
+  acts_as_not_paranoid
 end
 
 class UnparanoidUniqueModel < ActiveRecord::Base
