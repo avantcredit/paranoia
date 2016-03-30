@@ -17,6 +17,8 @@ def setup!
     'parent_model_with_counter_cache_columns' => 'related_models_count INTEGER DEFAULT 0',
     'parent_models' => 'deleted_at DATETIME, deleted BOOLEAN',
     'paranoid_models' => 'parent_model_id INTEGER, deleted_at DATETIME, deleted BOOLEAN',
+    'paranoid_model_lacking_deleted_columns' => 'deleted_at DATETIME',
+    'paranoid_model_lacking_deleted_at_columns' => 'deleted BOOLEAN',
     'paranoid_model_with_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_id INTEGER, deleted BOOLEAN',
     'paranoid_model_with_build_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_and_build_id INTEGER, name VARCHAR(32), deleted BOOLEAN',
     'paranoid_model_with_anthor_class_name_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_id INTEGER, deleted BOOLEAN',
@@ -83,6 +85,14 @@ class ParanoiaTest < test_framework
 
   def test_paranoid_models_are_paranoid
     assert_equal true, ParanoidModel.new.paranoid?
+  end
+
+  def test_paranoid_models_lacking_deleted_column_are_not_paranoid
+    refute ParanoidModelLackingDeletedColumn.paranoid?
+  end
+
+  def test_paranoid_models_lacking_deleted_at_column_are_not_paranoid
+    refute ParanoidModelLackingDeletedAtColumn.paranoid?
   end
 
   def test_paranoid_models_to_param
@@ -746,13 +756,6 @@ class ParanoiaTest < test_framework
     assert_equal 3, parent.very_related_models.size
   end
 
-  def test_model_without_db_connection
-    ActiveRecord::Base.remove_connection
-
-    NoConnectionModel.class_eval{ acts_as_paranoid }
-  ensure
-    setup!
-  end
 
   def test_restore_recursive_on_polymorphic_has_one_association
     parent = ParentModel.create
@@ -849,7 +852,6 @@ end
 
 class ParanoidModel < ActiveRecord::Base
   belongs_to :parent_model
-  acts_as_paranoid
 end
 
 class ParanoidWithUnparanoids < ActiveRecord::Base
@@ -864,7 +866,6 @@ end
 
 class FailCallbackModel < ActiveRecord::Base
   belongs_to :parent_model
-  acts_as_paranoid
 
   before_destroy { |_|
     if ActiveRecord::VERSION::MAJOR < 5
@@ -876,7 +877,6 @@ class FailCallbackModel < ActiveRecord::Base
 end
 
 class FeaturefulModel < ActiveRecord::Base
-  acts_as_paranoid
   validates :name, :presence => true, :uniqueness => true
 end
 
@@ -888,7 +888,6 @@ class PlainModel < ActiveRecord::Base
 end
 
 class CallbackModel < ActiveRecord::Base
-  acts_as_paranoid
   before_destroy      { |model| model.instance_variable_set :@destroy_callback_called, true }
   before_restore      { |model| model.instance_variable_set :@restore_callback_called, true }
   before_update       { |model| model.instance_variable_set :@update_callback_called, true }
@@ -906,7 +905,6 @@ class CallbackModel < ActiveRecord::Base
 end
 
 class ParentModel < ActiveRecord::Base
-  acts_as_paranoid
   has_many :paranoid_models
   has_many :related_models
   has_many :very_related_models, :class_name => 'RelatedModel', dependent: :destroy
@@ -921,7 +919,6 @@ class ParentModelWithCounterCacheColumn < ActiveRecord::Base
 end
 
 class RelatedModel < ActiveRecord::Base
-  acts_as_paranoid
   belongs_to :parent_model
   belongs_to :parent_model_with_counter_cache_column, counter_cache: true
 
@@ -940,25 +937,28 @@ class RelatedModel < ActiveRecord::Base
 end
 
 class Employer < ActiveRecord::Base
-  acts_as_paranoid
   validates_uniqueness_of :name
   has_many :jobs
   has_many :employees, :through => :jobs
 end
 
 class Employee < ActiveRecord::Base
-  acts_as_paranoid
   has_many :jobs
   has_many :employers, :through => :jobs
 end
 
 class Job < ActiveRecord::Base
-  acts_as_paranoid
   belongs_to :employer
   belongs_to :employee
 end
 
 class NonParanoidModel < ActiveRecord::Base
+end
+
+class ParanoidModelLackingDeletedColumn < ActiveRecord::Base
+end
+
+class ParanoidModelLackingDeletedAtColumn < ActiveRecord::Base
 end
 
 class ParanoidModelWithObservers < ParanoidModel
@@ -995,29 +995,24 @@ class ParanoidModelWithHasOneAndBuild < ActiveRecord::Base
 end
 
 class ParanoidModelWithBuildBelong < ActiveRecord::Base
-  acts_as_paranoid
   validates :name, :presence => true
   belongs_to :paranoid_model_with_has_one_and_build
 end
 
 class ParanoidModelWithBelong < ActiveRecord::Base
-  acts_as_paranoid
   belongs_to :paranoid_model_with_has_one
 end
 
 class ParanoidModelWithAnthorClassNameBelong < ActiveRecord::Base
-  acts_as_paranoid
   belongs_to :paranoid_model_with_has_one
 end
 
 class ParanoidModelWithForeignKeyBelong < ActiveRecord::Base
-  acts_as_paranoid
   belongs_to :paranoid_model_with_has_one
 end
 
 class ParanoidModelWithTimestamp < ActiveRecord::Base
   belongs_to :parent_model
-  acts_as_paranoid
 end
 
 class NotParanoidModelWithBelong < ActiveRecord::Base
@@ -1025,17 +1020,12 @@ class NotParanoidModelWithBelong < ActiveRecord::Base
 end
 
 class AsplodeModel < ActiveRecord::Base
-  acts_as_paranoid
   before_destroy do |r|
     raise StandardError, 'ASPLODE!'
   end
 end
 
-class NoConnectionModel < ActiveRecord::Base
-end
-
 class PolymorphicModel < ActiveRecord::Base
-  acts_as_paranoid
   belongs_to :parent, polymorphic: true
 end
 
@@ -1048,12 +1038,10 @@ module Namespaced
   end
 
   class ParanoidHasOne < ActiveRecord::Base
-    acts_as_paranoid
     has_one :paranoid_belongs_to, dependent: :destroy
   end
 
   class ParanoidBelongsTo < ActiveRecord::Base
-    acts_as_paranoid
     belongs_to :paranoid_has_one
   end
 end

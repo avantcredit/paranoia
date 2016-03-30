@@ -235,11 +235,6 @@ class ActiveRecord::Base
     original_remove_connection(*args)
   end
 
-
-  def self.acts_as_paranoid(opts = {})
-    # TODO remove noop
-  end
-
   def self.inherited(subclass)
     # To setup the restore/real_destroy callbacks in advance of connecting but before classes get defined,
     # only get used if subclass is eligible after columnar check in establish_connection.
