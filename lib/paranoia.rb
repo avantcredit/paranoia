@@ -212,21 +212,32 @@ class ActiveRecord::Base
     alias_method :original_connection, :connection
     alias_method :original_remove_connection, :remove_connection
     alias_method :original_inherited, :inherited
-    attr_accessor :already_checked_for_paranoid_eligibility
+    attr_accessor :already_checked_for_paranoid_eligibility, :paranoid
   end
 
-  def self.paranoid? ; false ; end
+  def self.acts_as_not_paranoid
+    self.paranoid = false
+  end
+
+  def self.paranoid? ; !!paranoid ; end
   def paranoid? ; self.class.paranoid? ; end
 
   def self.connection(opts = {})
-    self.setup_paranoid if  !already_checked_for_paranoid_eligibility and
-                              extend?(ActiveRecord::Base) and
-                              original_connection.table_exists?(table_name) and 
-                              original_connection.column_exists?(table_name, :deleted_at) and
-                              original_connection.column_exists?(table_name, :deleted)
+    self.setup_paranoid if has_a_right_to_be_paranoid?
     
     self.already_checked_for_paranoid_eligibility = true
     original_connection
+  end
+
+  def self.has_a_right_to_be_paranoid?
+      !already_checked_for_paranoid_eligibility and # Havent already checked
+        paranoid != false and # I haven't explicitly said at top of my class I want to ignore paranoia
+        ENV['PARANOIA_ENABLED'] == 'true' and # System has paranoia enabled
+        extend?(ActiveRecord::Base) and # I am an AR Model
+        ENV['PARANOIA_BLACKLIST'].try(:match, /(^|,)#{table_name}(,|\z)/).nil? and # I am not part of ENV blacklist (loans,loan_tasks,...)
+        original_connection.table_exists?(table_name) and # Table exists
+        original_connection.column_exists?(table_name, :deleted_at) and # I have deleted_at 
+        original_connection.column_exists?(table_name, :deleted) # I have deleted column
   end
 
   def self.remove_connection(*args)
@@ -255,6 +266,7 @@ class ActiveRecord::Base
     self.paranoia_column = :deleted
     self.paranoia_timestamp_column = :deleted_at
     self.paranoia_sentinel_value = false
+    self.paranoid = true
 
     def self.paranoia_scope
       where(paranoia_column => paranoia_sentinel_value)
@@ -269,8 +281,6 @@ class ActiveRecord::Base
     after_restore {
       self.class.notify_observers(:after_restore, self) if self.class.respond_to?(:notify_observers)
     }
-
-    def self.paranoid? ; true ; end
 
     private
 

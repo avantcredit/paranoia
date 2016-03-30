@@ -4,6 +4,8 @@ require 'minitest/autorun'
 require 'paranoia'
 require 'pry'
 
+ENV['PARANOIA_ENABLED'] = 'true'
+
 test_framework = defined?(MiniTest::Test) ? MiniTest::Test : MiniTest::Unit::TestCase
 ActiveRecord::Base.raise_in_transactional_callbacks = true if ActiveRecord::VERSION::STRING >= '4.2'
 
@@ -17,6 +19,9 @@ def setup!
     'parent_model_with_counter_cache_columns' => 'related_models_count INTEGER DEFAULT 0',
     'parent_models' => 'deleted_at DATETIME, deleted BOOLEAN',
     'paranoid_models' => 'parent_model_id INTEGER, deleted_at DATETIME, deleted BOOLEAN',
+    'blacklisted_paranoid_models' => 'deleted_at DATETIME, deleted BOOLEAN',
+    'second_blacklisted_paranoid_models' => 'deleted_at DATETIME, deleted BOOLEAN',
+    'third_blacklisted_paranoid_models' => 'deleted_at DATETIME, deleted BOOLEAN',
     'paranoid_model_lacking_deleted_columns' => 'deleted_at DATETIME',
     'paranoid_model_lacking_deleted_at_columns' => 'deleted BOOLEAN',
     'paranoid_model_with_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_id INTEGER, deleted BOOLEAN',
@@ -85,6 +90,16 @@ class ParanoiaTest < test_framework
 
   def test_paranoid_models_are_paranoid
     assert_equal true, ParanoidModel.new.paranoid?
+  end
+
+  def test_paranoid_models_are_not_paranoid_when_blacklisted
+    # Tests when is table_name,
+    # ,table_name,
+    # or ,table_name
+    # in ENV['PARANOIA_BLACKLIST']
+    refute BlacklistedParanoidModel.paranoid?
+    refute SecondBlacklistedParanoidModel.paranoid?
+    refute ThirdBlacklistedParanoidModel.paranoid?
   end
 
   def test_paranoid_models_lacking_deleted_column_are_not_paranoid
@@ -1030,6 +1045,14 @@ class PolymorphicModel < ActiveRecord::Base
 end
 
 class PlainModel < ActiveRecord::Base
+end
+
+ENV['PARANOIA_BLACKLIST'] = 'blacklisted_paranoid_models,second_blacklisted_paranoid_models,third_blacklisted_paranoid_models'
+class BlacklistedParanoidModel < ActiveRecord::Base
+end
+class SecondBlacklistedParanoidModel < ActiveRecord::Base
+end
+class ThirdBlacklistedParanoidModel < ActiveRecord::Base
 end
 
 module Namespaced
