@@ -8,8 +8,6 @@ module Paranoia
   end
 
   module Query
-    def paranoid? ; true ; end
-
     def with_deleted
       if ActiveRecord::VERSION::STRING >= "4.1"
         return unscope where: paranoia_column
@@ -248,7 +246,7 @@ class ActiveRecord::Base
 
   def self.inherited(subclass)
     # To setup the restore/real_destroy callbacks in advance of connecting but before classes get defined,
-    # only get used if subclass is eligible after columnar check in establish_connection.
+    # only get used if subclass is eligible after columnar check in self.connection.
     Paranoia::Callbacks.add_callbacks_to(subclass)
 
     original_inherited(subclass)
@@ -271,7 +269,9 @@ class ActiveRecord::Base
     def self.paranoia_scope
       where(paranoia_column => paranoia_sentinel_value)
     end
+
     default_scope { paranoia_scope }
+
     class << self; alias_method :without_deleted, :paranoia_scope end
 
     before_restore {
@@ -306,7 +306,7 @@ module ActiveRecord
       def build_relation(klass, table, attribute, value)
         relation = super(klass, table, attribute, value)
 
-        return relation unless klass.respond_to?(:paranoia_column) and klass.respond_to?(:paranoia_timestamp_column)
+        return relation unless klass.paranoid?
 
         arel_paranoia_scope = klass.arel_table[klass.paranoia_column].eq(klass.paranoia_sentinel_value)
         if ActiveRecord::VERSION::STRING >= "5.0"
