@@ -4,6 +4,7 @@ require 'minitest/autorun'
 require 'paranoia'
 require 'pry'
 
+# TODO figure out a way to test disablement in same test file. Ideas welcome.
 ENV['PARANOIA_ENABLED'] = 'true'
 
 test_framework = defined?(MiniTest::Test) ? MiniTest::Test : MiniTest::Unit::TestCase
