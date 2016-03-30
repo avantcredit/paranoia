@@ -210,6 +210,7 @@ end
 class ActiveRecord::Base
   class << self
     alias_method :original_connection, :connection
+    alias_method :original_remove_connection, :remove_connection
     alias_method :original_inherited, :inherited
     attr_accessor :already_checked_for_paranoid_eligibility
   end
@@ -228,6 +229,13 @@ class ActiveRecord::Base
     original_connection
   end
 
+  def self.remove_connection(*args)
+    # New connection may have necessary columns.
+    self.already_checked_for_paranoid_eligibility = false
+    original_remove_connection(*args)
+  end
+
+
   def self.acts_as_paranoid(opts = {})
     # TODO remove noop
   end
@@ -241,33 +249,31 @@ class ActiveRecord::Base
   end
 
   def self.setup_paranoid
-    include Paranoia
     class_attribute :paranoia_column, :paranoia_sentinel_value, :paranoia_timestamp_column
 
     alias_method :really_destroyed?, :destroyed?
     alias_method :really_delete, :delete
     alias_method :destroy_without_paranoia, :destroy
 
+    include Paranoia
+
     self.paranoia_column = :deleted
     self.paranoia_timestamp_column = :deleted_at
     self.paranoia_sentinel_value = false
 
-    default_scope { where(paranoia_column => paranoia_sentinel_value) }
+    def self.paranoia_scope
+      where(paranoia_column => paranoia_sentinel_value)
+    end
+    default_scope { paranoia_scope }
+    class << self; alias_method :without_deleted, :paranoia_scope end
 
     before_restore {
       self.class.notify_observers(:before_restore, self) if self.class.respond_to?(:notify_observers)
     }
+
     after_restore {
       self.class.notify_observers(:after_restore, self) if self.class.respond_to?(:notify_observers)
     }
-
-    before_destroy do
-      self.send(paranoia_timestamp_column.to_s + "=", Time.now)
-    end
-
-    before_restore do
-      self.send(paranoia_timestamp_column.to_s + "=", nil)
-    end
 
     def self.paranoid? ; true ; end
 
@@ -295,7 +301,7 @@ module ActiveRecord
       def build_relation(klass, table, attribute, value)
         relation = super(klass, table, attribute, value)
 
-        return relation unless klass.paranoia_column.present? and klass.paranoia_timestamp_column.present?
+        return relation unless klass.respond_to?(:paranoia_column) and klass.respond_to?(:paranoia_timestamp_column)
 
         arel_paranoia_scope = klass.arel_table[klass.paranoia_column].eq(klass.paranoia_sentinel_value)
         if ActiveRecord::VERSION::STRING >= "5.0"

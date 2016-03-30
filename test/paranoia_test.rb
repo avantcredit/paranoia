@@ -50,7 +50,7 @@ end
 
 class WithDifferentConnection < ActiveRecord::Base
   establish_connection adapter: 'sqlite3', database: ':memory:'
-  connection.execute 'CREATE TABLE with_different_connections (id INTEGER NOT NULL PRIMARY KEY, deleted_at DATETIME, deleted BOOLEAN)'
+  original_connection.execute 'CREATE TABLE with_different_connections (id INTEGER NOT NULL PRIMARY KEY, deleted_at DATETIME, deleted BOOLEAN)'
 end
 
 setup!
@@ -102,8 +102,6 @@ class ParanoiaTest < test_framework
     model.save!
     assert_equal 1, model.class.count
     model.destroy
-
-    assert_equal true, model.deleted_at.nil?
 
     assert_equal 0, model.class.count
     assert_equal 0, model.class.unscoped.count
@@ -400,7 +398,7 @@ class ParanoiaTest < test_framework
     model = ParanoidModel.new
     model.save
     model.really_destroy!
-    binding.pry
+
     refute ParanoidModel.unscoped.exists?(model.id), "Model was not truly deleted!"
   end
 
@@ -700,17 +698,6 @@ class ParanoiaTest < test_framework
     pt1.restore!
     assert pt1.deleted_at.nil?
     assert pt1.updated_at > 10.minutes.ago
-  end
-
-  def test_i_am_the_destroyer
-    expected = %Q{
-      Sharon: "There should be a method called I_AM_THE_DESTROYER!"
-      Ryan:   "What should this method do?"
-      Sharon: "It should fix all the spelling errors on the page!"
-}
-    assert_output expected do
-      ParanoidModel.I_AM_THE_DESTROYER!
-    end
   end
 
   def test_destroy_fails_if_callback_raises_exception
@@ -1050,6 +1037,9 @@ end
 class PolymorphicModel < ActiveRecord::Base
   acts_as_paranoid
   belongs_to :parent, polymorphic: true
+end
+
+class PlainModel < ActiveRecord::Base
 end
 
 module Namespaced
