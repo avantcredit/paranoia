@@ -40,7 +40,9 @@ module Paranoia
         self.paranoid = false
       end
 
-      def paranoid? ; !!paranoid ; end
+      def paranoid?
+        !!paranoid
+      end
 
       def connection(*args)
         self.setup_paranoid if has_a_right_to_be_paranoid?
