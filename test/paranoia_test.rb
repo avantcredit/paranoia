@@ -58,7 +58,7 @@ end
 
 class WithDifferentConnection < ActiveRecord::Base
   establish_connection adapter: 'sqlite3', database: ':memory:'
-  original_connection.execute 'CREATE TABLE with_different_connections (id INTEGER NOT NULL PRIMARY KEY, deleted_at DATETIME, deleted BOOLEAN)'
+  method(:connection).super_method.call.execute 'CREATE TABLE with_different_connections (id INTEGER NOT NULL PRIMARY KEY, deleted_at DATETIME, deleted BOOLEAN)'
 end
 
 setup!
