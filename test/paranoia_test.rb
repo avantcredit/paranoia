@@ -11,54 +11,55 @@ test_framework = defined?(MiniTest::Test) ? MiniTest::Test : MiniTest::Unit::Tes
 ActiveRecord::Base.raise_in_transactional_callbacks = true if ActiveRecord::VERSION::STRING >= '4.2'
 
 def connect!
-  ActiveRecord::Base.establish_connection :adapter => 'sqlite3', database: ':memory:'
+  ActiveRecord::Base.establish_connection :adapter => 'postgresql', database: 'paranoia_test'
 end
 
 def setup!
   connect!
+  ActiveRecord::Base.connection.execute("drop schema public cascade; create schema public;")
   {
     'parent_model_with_counter_cache_columns' => 'related_models_count INTEGER DEFAULT 0',
-    'parent_models' => 'deleted_at DATETIME, deleted BOOLEAN',
-    'paranoid_models' => 'parent_model_id INTEGER, deleted_at DATETIME, deleted BOOLEAN',
-    'blacklisted_paranoid_models' => 'deleted_at DATETIME, deleted BOOLEAN',
-    'second_blacklisted_paranoid_models' => 'deleted_at DATETIME, deleted BOOLEAN',
-    'third_blacklisted_paranoid_models' => 'deleted_at DATETIME, deleted BOOLEAN',
-    'paranoid_model_lacking_deleted_columns' => 'deleted_at DATETIME',
+    'parent_models' => 'deleted_at TIMESTAMP, deleted BOOLEAN',
+    'paranoid_models' => 'parent_model_id INTEGER, deleted_at TIMESTAMP, deleted BOOLEAN',
+    'blacklisted_paranoid_models' => 'deleted_at TIMESTAMP, deleted BOOLEAN',
+    'second_blacklisted_paranoid_models' => 'deleted_at TIMESTAMP, deleted BOOLEAN',
+    'third_blacklisted_paranoid_models' => 'deleted_at TIMESTAMP, deleted BOOLEAN',
+    'paranoid_model_lacking_deleted_columns' => 'deleted_at TIMESTAMP',
     'paranoid_model_lacking_deleted_at_columns' => 'deleted BOOLEAN',
-    'paranoid_model_with_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_id INTEGER, deleted BOOLEAN',
-    'paranoid_model_with_build_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_and_build_id INTEGER, name VARCHAR(32), deleted BOOLEAN',
-    'paranoid_model_with_anthor_class_name_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, paranoid_model_with_has_one_id INTEGER, deleted BOOLEAN',
-    'paranoid_model_with_foreign_key_belongs' => 'parent_model_id INTEGER, deleted_at DATETIME, has_one_foreign_key_id INTEGER, deleted BOOLEAN',
-    'paranoid_model_with_timestamps' => 'parent_model_id INTEGER, created_at DATETIME, updated_at DATETIME, deleted_at DATETIME, deleted BOOLEAN',
+    'paranoid_model_with_belongs' => 'parent_model_id INTEGER, deleted_at TIMESTAMP, paranoid_model_with_has_one_id INTEGER, deleted BOOLEAN',
+    'paranoid_model_with_build_belongs' => 'parent_model_id INTEGER, deleted_at TIMESTAMP, paranoid_model_with_has_one_and_build_id INTEGER, name VARCHAR(32), deleted BOOLEAN',
+    'paranoid_model_with_anthor_class_name_belongs' => 'parent_model_id INTEGER, deleted_at TIMESTAMP, paranoid_model_with_has_one_id INTEGER, deleted BOOLEAN',
+    'paranoid_model_with_foreign_key_belongs' => 'parent_model_id INTEGER, deleted_at TIMESTAMP, has_one_foreign_key_id INTEGER, deleted BOOLEAN',
+    'paranoid_model_with_timestamps' => 'parent_model_id INTEGER, created_at TIMESTAMP, updated_at TIMESTAMP, deleted_at TIMESTAMP, deleted BOOLEAN',
     'not_paranoid_model_with_belongs' => 'parent_model_id INTEGER, paranoid_model_with_has_one_id INTEGER',
-    'paranoid_model_with_has_one_and_builds' => 'parent_model_id INTEGER, color VARCHAR(32), deleted_at DATETIME, has_one_foreign_key_id INTEGER, deleted BOOLEAN',
-    'featureful_models' => 'deleted_at DATETIME, name VARCHAR(32), deleted BOOLEAN',
+    'paranoid_model_with_has_one_and_builds' => 'parent_model_id INTEGER, color VARCHAR(32), deleted_at TIMESTAMP, has_one_foreign_key_id INTEGER, deleted BOOLEAN',
+    'featureful_models' => 'deleted_at TIMESTAMP, name VARCHAR(32), deleted BOOLEAN',
     'plain_models' => 'some_column VARCHAR(32)',
-    'callback_models' => 'deleted_at DATETIME, deleted BOOLEAN',
-    'fail_callback_models' => 'deleted_at DATETIME, deleted BOOLEAN',
-    'related_models' => 'parent_model_id INTEGER, parent_model_with_counter_cache_column_id INTEGER, deleted_at DATETIME, deleted BOOLEAN',
-    'asplode_models' => 'parent_model_id INTEGER, deleted_at DATETIME, deleted BOOLEAN',
-    'employers' => 'name VARCHAR(32), deleted_at DATETIME, deleted BOOLEAN',
-    'employees' => 'deleted_at DATETIME, deleted BOOLEAN',
-    'jobs' => 'employer_id INTEGER NOT NULL, employee_id INTEGER NOT NULL, deleted_at DATETIME, deleted BOOLEAN',
-    'custom_column_models' => 'destroyed_at DATETIME, deleted BOOLEAN',
-    'custom_sentinel_models' => 'deleted_at DATETIME NOT NULL, deleted BOOLEAN',
+    'callback_models' => 'deleted_at TIMESTAMP, deleted BOOLEAN',
+    'fail_callback_models' => 'deleted_at TIMESTAMP, deleted BOOLEAN',
+    'related_models' => 'parent_model_id INTEGER, parent_model_with_counter_cache_column_id INTEGER, deleted_at TIMESTAMP, deleted BOOLEAN',
+    'asplode_models' => 'parent_model_id INTEGER, deleted_at TIMESTAMP, deleted BOOLEAN',
+    'employers' => 'name VARCHAR(32), deleted_at TIMESTAMP, deleted BOOLEAN',
+    'employees' => 'deleted_at TIMESTAMP, deleted BOOLEAN',
+    'jobs' => 'employer_id INTEGER NOT NULL, employee_id INTEGER NOT NULL, deleted_at TIMESTAMP, deleted BOOLEAN',
+    'custom_column_models' => 'destroyed_at TIMESTAMP, deleted BOOLEAN',
+    'custom_sentinel_models' => 'deleted_at TIMESTAMP NOT NULL, deleted BOOLEAN',
     'non_paranoid_models' => 'parent_model_id INTEGER',
-    'polymorphic_models' => 'parent_id INTEGER, parent_type STRING, deleted_at DATETIME, deleted BOOLEAN',
-    'namespaced_paranoid_has_ones' => 'deleted_at DATETIME, paranoid_belongs_tos_id INTEGER, deleted BOOLEAN',
-    'namespaced_paranoid_belongs_tos' => 'deleted_at DATETIME, paranoid_has_one_id INTEGER, deleted BOOLEAN',
+    'polymorphic_models' => 'parent_id INTEGER, parent_type VARCHAR(255), deleted_at TIMESTAMP, deleted BOOLEAN',
+    'namespaced_paranoid_has_ones' => 'deleted_at TIMESTAMP, paranoid_belongs_tos_id INTEGER, deleted BOOLEAN',
+    'namespaced_paranoid_belongs_tos' => 'deleted_at TIMESTAMP, paranoid_has_one_id INTEGER, deleted BOOLEAN',
     'unparanoid_unique_models' => 'name VARCHAR(32), paranoid_with_unparanoids_id INTEGER',
-    'active_column_models' => 'deleted_at DATETIME, active BOOLEAN',
-    'active_column_model_with_uniqueness_validations' => 'name VARCHAR(32), deleted_at DATETIME, active BOOLEAN',
-    'without_default_scope_models' => 'deleted_at DATETIME, deleted BOOLEAN'
+    'active_column_models' => 'deleted_at TIMESTAMP, active BOOLEAN',
+    'active_column_model_with_uniqueness_validations' => 'name VARCHAR(32), deleted_at TIMESTAMP, active BOOLEAN',
+    'without_default_scope_models' => 'deleted_at TIMESTAMP, deleted BOOLEAN'
   }.each do |table_name, columns_as_sql_string|
-    ActiveRecord::Base.connection.execute "CREATE TABLE #{table_name} (id INTEGER NOT NULL PRIMARY KEY, #{columns_as_sql_string})"
+    ActiveRecord::Base.connection.execute "CREATE TABLE #{table_name} (id SERIAL PRIMARY KEY, #{columns_as_sql_string})"
   end
 end
 
 class WithDifferentConnection < ActiveRecord::Base
   establish_connection adapter: 'sqlite3', database: ':memory:'
-  method(:connection).super_method.call.execute 'CREATE TABLE with_different_connections (id INTEGER NOT NULL PRIMARY KEY, deleted_at DATETIME, deleted BOOLEAN)'
+  method(:connection).super_method.call.execute 'CREATE TABLE with_different_connections (id SERIAL PRIMARY KEY, deleted_at TIMESTAMP, deleted BOOLEAN)'
 end
 
 setup!
