@@ -66,15 +66,13 @@ module Paranoia
     def destroy
       transaction do
         run_callbacks(:destroy) do
-          result = delete
-          next result unless result && ActiveRecord::VERSION::STRING >= '4.2'
           each_counter_cached_associations do |association|
             foreign_key = association.reflection.foreign_key.to_sym
             next if destroyed_by_association && destroyed_by_association.foreign_key.to_sym == foreign_key
             next unless send(association.reflection.name)
             association.decrement_counters
           end
-          result
+          delete
         end
       end
     end
@@ -85,11 +83,17 @@ module Paranoia
         # if a transaction exists, add the record so that after_commit
         # callbacks can be run
         add_to_transaction
-        update_columns(paranoia_destroy_attributes)
+
+        # When actual delete is called, deleted will be set to true and deleted_at set to now()
+        # by the DB. Instead of reloading to get that info, we're going to set it to true/Time.now
+        # here so that the deleted flag is true for the object in memory and it has a (close, practically same) timestamp
+        # as what is on DB.
+       
+        assign_attributes(paranoia_destroy_attributes)
       elsif !frozen?
         assign_attributes(paranoia_destroy_attributes)
       end
-      self
+      super
     end
 
     def restore!(opts = {})
@@ -117,32 +121,6 @@ module Paranoia
       send(paranoia_column) != paranoia_sentinel_value
     end
     alias :deleted? :paranoia_destroyed?
-
-    def really_destroy!
-      transaction do
-        run_callbacks(:real_destroy) do
-          dependent_reflections = self.class.reflections.select do |name, reflection|
-            reflection.options[:dependent] == :destroy
-          end
-          if dependent_reflections.any?
-            dependent_reflections.each do |name, reflection|
-              association_data = self.send(name)
-              # has_one association can return nil
-              # .paranoid? will work for both instances and classes
-              next unless association_data && association_data.paranoid?
-              if reflection.collection?
-                next association_data.with_deleted.each(&:really_destroy!)
-              end
-              association_data.really_destroy!
-            end
-          end
-          write_attribute(paranoia_timestamp_column, current_time_from_proper_timezone)
-          write_attribute(paranoia_column, !paranoia_sentinel_value)
-
-          destroy_without_paranoia
-        end
-      end
-    end
 
     private
 

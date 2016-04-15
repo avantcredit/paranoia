@@ -16,7 +16,7 @@ module Paranoia
       # are eligible for paranoia until after the callbacks havebeen evaluated and a connection
       # has been opened so that we can check for needed columns. So these callbacks must exist
       # in advance of true acts_as_paranoid.
-      [:restore, :real_destroy].each do |callback_name|
+      [:restore].each do |callback_name|
         klazz.define_callbacks callback_name
 
         klazz.define_singleton_method("before_#{callback_name}") do |*args, &block|
@@ -71,11 +71,6 @@ module Paranoia
       end
 
       def setup_paranoid
-        # Need to alias these before we include and overwrite with Paranoia::Actions.
-        alias_method :really_destroyed?, :destroyed?
-        alias_method :really_delete, :delete
-        alias_method :destroy_without_paranoia, :destroy
-
         include Paranoia::ActsAsParanoid
       end
     end

@@ -3,6 +3,7 @@ require 'active_record' unless defined? ActiveRecord
 require 'paranoia/acts_as_paranoid'
 require 'paranoia/paranoiable'
 require 'paranoia/uniqueness_paranoia_validator'
+require 'paranoia/schizify'
 
 module Paranoia
   def self.included(klazz)
