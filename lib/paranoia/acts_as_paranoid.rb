@@ -23,7 +23,12 @@ module Paranoia
         default_scope { paranoia_scope }
       end
 
-      class << klazz; alias_method :without_deleted, :paranoia_scope end
+      # hack to allow mass assignment of these fields when necessary
+      klazz.attr_accessible(:deleted, :deleted_at) if klazz.respond_to?(:attr_accessible)
+
+      class << klazz
+        alias_method :without_deleted, :paranoia_scope 
+      end
     end
 
     module ClassMethods
