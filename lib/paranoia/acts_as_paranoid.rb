@@ -88,7 +88,6 @@ module Paranoia
         # by the DB. Instead of reloading to get that info, we're going to set it to true/Time.now
         # here so that the deleted flag is true for the object in memory and it has a (close, practically same) timestamp
         # as what is on DB.
-       
         assign_attributes(paranoia_destroy_attributes)
       elsif !frozen?
         assign_attributes(paranoia_destroy_attributes)

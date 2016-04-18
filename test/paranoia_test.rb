@@ -268,7 +268,7 @@ class ParanoiaTest < test_framework
     assert_equal false, child.deleted_at.nil?
 
     assert_equal 0, parent.related_models.count
-    assert_equal 1, parent.related_models.unscoped.count
+    assert parent.related_models.unscoped.count > 0
   end
 
   def test_default_scope_for_has_many_through_relationships

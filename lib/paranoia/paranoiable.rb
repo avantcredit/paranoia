@@ -46,7 +46,7 @@ module Paranoia
 
       def connection(*args)
         self.setup_paranoid if has_a_right_to_be_paranoid?
-        
+
         self.already_checked_for_paranoid_eligibility = true
         super(*args)
       end
