@@ -47,6 +47,9 @@ def setup!
     'polymorphic_models' => ['parent_id INTEGER, parent_type VARCHAR(255)', true],
     'namespaced_paranoid_has_ones' => ['paranoid_belongs_tos_id INTEGER', true],
     'namespaced_paranoid_belongs_tos' => ['paranoid_has_one_id INTEGER', true],
+    'customers' => ['', true],
+    'credit_decisions' => ['customer_id INTEGER', true],
+    'namespaced_credit_model_scores' => ['scorable_id INTEGER, scorable_type VARCHAR(255)', true],
     'unparanoid_unique_models' => ['name VARCHAR(32), paranoid_with_unparanoids_id INTEGER', false],
     'without_default_scope_models' => ['', true],
     'with_different_connections' => ['', true]
@@ -578,6 +581,14 @@ class ParanoiaTest < test_framework
     assert hasOne.reload.deleted_at.nil?
   end
 
+  def test_can_add_namespaced_has_many_class_to_non_namespaced_class
+    cd = CreditDecision.create
+    person = Customer.create
+    score = Namespaced::CreditModelScore.create(scorable: person)
+
+    cd.credit_model_scores << score
+  end
+
   # covers #185
   def test_restoring_recursive_has_one_restores_correct_object
     hasOnes = 2.times.map { ParanoidModelWithHasOne.create }
@@ -944,6 +955,16 @@ end
 class ThirdBlacklistedParanoidModel < ActiveRecord::Base
 end
 
+class Customer < ActiveRecord::Base
+  has_many :credit_decisions
+  has_many :credit_model_scores, -> { order('created_at desc') }, class_name: 'Namespaced::CreditModelScore', as: :scorable
+end
+
+class CreditDecision < ActiveRecord::Base
+  belongs_to :customer, inverse_of: :credit_decisions
+  has_many :credit_model_scores, class_name: 'Namespaced::CreditModelScore', as: :scorable
+end
+
 module Namespaced
   def self.table_name_prefix
     "namespaced_"
@@ -955,5 +976,10 @@ module Namespaced
 
   class ParanoidBelongsTo < ActiveRecord::Base
     belongs_to :paranoid_has_one
+  end
+
+  class CreditModelScore < ActiveRecord::Base
+    belongs_to :credit_decision
+    belongs_to :scorable, polymorphic: true
   end
 end

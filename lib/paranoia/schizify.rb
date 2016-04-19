@@ -35,7 +35,7 @@ module Paranoia
       tables_and_keys.each do |row|
         t = row["table_name"]
 
-        next if ["recent_versions", "versions", "model_bridges", "model_stats"].include?(t) # Special tables we cant viewify
+        next if ENV['PARANOIA_BLACKLIST'].try(:split, ",").try(:include?, t) # Special tables we cant viewify
 
         key = row["column_name"]
 

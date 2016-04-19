@@ -2,6 +2,7 @@ module Paranoia
   module ActsAsParanoid
 
     def self.included(klazz)
+
       klazz.class_eval do
         extend ClassMethods
 
@@ -22,9 +23,6 @@ module Paranoia
 
         default_scope { paranoia_scope }
       end
-
-      # hack to allow mass assignment of these fields when necessary
-      klazz.attr_accessible(:deleted, :deleted_at) if klazz.respond_to?(:attr_accessible)
 
       class << klazz
         alias_method :without_deleted, :paranoia_scope 
@@ -93,9 +91,9 @@ module Paranoia
         # by the DB. Instead of reloading to get that info, we're going to set it to true/Time.now
         # here so that the deleted flag is true for the object in memory and it has a (close, practically same) timestamp
         # as what is on DB.
-        assign_attributes(paranoia_destroy_attributes)
+        assign_paranoia_destroy_attributes
       elsif !frozen?
-        assign_attributes(paranoia_destroy_attributes)
+        assign_paranoia_destroy_attributes
       end
       super
     end
@@ -127,6 +125,12 @@ module Paranoia
     alias :deleted? :paranoia_destroyed?
 
     private
+
+    def assign_paranoia_destroy_attributes
+      paranoia_destroy_attributes.each do |key, val|
+        send("#{key}=", val)
+      end
+    end
 
     def paranoia_restore_attributes
       {
