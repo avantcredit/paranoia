@@ -45,9 +45,7 @@ module Paranoia
       end
 
       def connection(*args)
-        self.setup_paranoid if has_a_right_to_be_paranoid?
-
-        self.already_checked_for_paranoid_eligibility = true
+        try_paranoia_setup
         super(*args)
       end
 
@@ -57,17 +55,26 @@ module Paranoia
         super(*args)
       end
 
+      def ar_model?
+        (ancestors - [self]).include?(ActiveRecord::Base)
+      end
+
       def has_a_right_to_be_paranoid?
         conn = method(:connection).super_method.call
 
         !already_checked_for_paranoid_eligibility and # Havent already checked
           paranoid != false and # I haven't explicitly said at top of my class I want to ignore paranoia
           ENV['PARANOIA_ENABLED'] == 'true' and # System has paranoia enabled
-          (ancestors - [self]).include?(ActiveRecord::Base) and # I am an AR Model
+          ar_model? and # I am an AR Model
           ENV['PARANOIA_BLACKLIST'].try(:match, /(^|,)#{table_name}(,|\z)/).nil? and # I am not part of ENV blacklist (loans,loan_tasks,...)
           conn.table_exists?(table_name) and # Table exists
           conn.column_exists?(table_name, :deleted_at) and # I have deleted_at 
           conn.column_exists?(table_name, :deleted) # I have deleted column
+      end
+
+      def try_paranoia_setup
+        self.setup_paranoid if has_a_right_to_be_paranoid?
+        self.already_checked_for_paranoid_eligibility = true
       end
 
       def setup_paranoid
