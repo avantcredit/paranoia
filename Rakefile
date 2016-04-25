@@ -8,3 +8,5 @@ task :test do
 end
 
 task :default => :test
+
+import "./lib/tasks/soft_deletes.rake"
