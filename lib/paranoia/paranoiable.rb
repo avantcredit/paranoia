@@ -8,7 +8,7 @@ module Paranoia
       class << klazz
         attr_accessor :already_checked_for_paranoid_eligibility, :paranoid
         alias_method :with_deleted, :all
-        
+
         prepend ClassMethods # To get access to super() methods in connection/remove_connection
       end  
 
@@ -77,6 +77,11 @@ module Paranoia
       def try_paranoia_setup
         self.setup_paranoid if has_a_right_to_be_paranoid?
         self.already_checked_for_paranoid_eligibility = true
+      end
+
+      def try_paranoia_setup!
+        self.already_checked_for_paranoid_eligibility = false
+        try_paranoia_setup
       end
 
       def setup_paranoid
