@@ -7,6 +7,8 @@ module Paranoia
     def self.included(klazz)
       class << klazz
         attr_accessor :already_checked_for_paranoid_eligibility, :paranoid
+        alias_method :with_deleted, :all
+        
         prepend ClassMethods # To get access to super() methods in connection/remove_connection
       end  
 
